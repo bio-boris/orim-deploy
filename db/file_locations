@@ -1,0 +1,13 @@
+../data/
+../data/phytozome_annotations
+../data/phytozome_annotations/defline.txt
+../data/phytozome_annotations/synonym.txt
+../data/phytozome_annotations/annotation_info.txt
+../data/phytozome_annotations/gene_exons.gff3
+../data/phytozome_annotations/gene.gff
+../data/phytozome_annotations/protein.fa
+../data/phytozome_annotations/readme.txt
+../data/annotations_custom
+../data/markers
+../data/organisms
+../data/blast

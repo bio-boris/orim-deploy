@@ -1,0 +1,209 @@
+#!/usr/bin/env perl
+use Term::ANSIColor;
+use strict;
+use DBI;
+main();
+
+
+my %data_sources;
+my %orgs;
+
+sub main(){
+#Check to see if each data exists;
+	print color 'magenta';
+	print "We have generated data from ../generateData.pl, as well as have prepopulated folders with SQL schemas.\n".
+		"Time to verify downloaded directories are good, load info from the organisms_list and begin creating the tables of data \n";
+	print color 'reset'; 
+
+	checkDataSources();
+
+	%orgs = loadOrganisms();
+
+
+	my @table_filepaths = ('organisms','chr','markers','recent','annotations','blast','gene_locations');
+	checkTables(@table_filepaths);
+	createTableData();
+	#inserTables();
+}
+
+
+
+
+sub checkTables{
+	#Filepaths to SQL files	
+	my @table_filepaths = @_;
+	print "Checking for existence of SQL files to create tables\n";
+	foreach my $sql_file(@table_filepaths){
+		fileExists("./sql/$sql_file.sql");
+	}
+}
+
+
+
+sub createTableData(){
+	print color 'cyan';	
+print "\nAbout to create data files to be inserted into each table.".
+	"Will use the ../data direcotry \n";
+	print color 'reset';
+	createOrganismsTableData();
+	createChrTableData();
+}
+
+
+sub createChrTableData(){
+	printSchema('chr');
+	print localtime;
+	my %hash;
+	foreach my $org(keys %orgs){
+		my $fp = "../data/phytozome_annotations/gene.gff/".$org."_gene.gff3";
+		print "Opening file $fp\n";
+		open my $fh, $fp or die;
+		my $header = <$fh>;
+		while( my $line = <$fh>)
+		{
+			my @line = split /\t/, $line;	
+			my $cid = $line[0];
+			my $feature = $line[2];
+			my $start = $line[3];	
+			my $stop =$line[4];
+		 	if($feature eq 'mRNA'){
+				if($stop > $hash{$org}{$cid}{'stop'}){
+					$hash{$org}{$cid}{'stop'} = $stop;
+				}				
+				if($start < $hash{$org}{$cid}{'start'}){
+				    $hash{$org}{$cid}{'start'} = $start;
+				}
+				
+			}		
+			}
+		last;	
+	}
+	open F, ">out" or die $!;
+	print "O_id\tCid\tStart\tStop\n";
+	foreach my $org(sort keys %hash){
+		foreach my $cid(sort keys(%{$hash{$org}})){
+			print F join "\t", $org, $cid, $hash{$org}{$cid}{'start'},$hash{$org}{$cid}{'stop'}, "\n";
+		}
+	}
+	print localtime;
+}
+
+sub createOrganismsTableData(){
+	printSchema('organisms');
+	print color 'magenta';
+	print "This table data is handmade, as it controls which organisms we want to look at. Look in data/organisms for it!";
+	print color 'reset';
+	print "\n\n";
+
+}
+
+
+sub printSchema(){
+	my $fp = shift;
+	open F, "./sql/$fp.sql" or die $!;
+	printYellow('-----------------------------------');
+        printYellow("About to create data for $fp.sql");
+	print <F>; close F;
+        printYellow('-----------------------------------');
+
+}
+
+
+
+
+
+
+
+
+#Return a list of organisms
+sub loadOrganisms{
+	open F, '../data/organisms/organisms_list';
+	my %organisms;
+	my $count = 0;
+	while(my $line=<F>){
+		chomp $line;
+		my ($id,$type,$latin,$name) = split /\t/, $line;
+		$organisms{$id}{'latin'} = $latin;
+		$organisms{$id}{'name'}= $name;
+		$organisms{$id}{'id'} = $count;
+		$organisms{$id}{'type'} = $type;
+		$count++;
+	}
+	printYellow( "Discovered " . (scalar keys %organisms) . " Organisms from phytozome in the organsims_list file and kept the list!");
+	return %organisms;
+
+}
+
+
+sub checkDataSources(){
+	my @data_directories;
+	open F, 'file_locations' or dieError("couldn't find configuration file");
+	printYellow("Looking for directories from the file  'file_locations'");
+	chomp(my @data_directories = <F>);
+	if(fileExists('../data/organisms/organisms_list')){
+		foreach my $dir(@data_directories){
+			#print "Checking if '$dir' exists\n";
+			dirExists($dir);
+		}
+	}
+	close F;
+
+}
+
+
+sub printYellow(){
+	print color 'yellow';
+	print shift,"\n";
+	print color 'reset';
+}
+
+
+
+#Collection of functions that check if something exists or not
+sub dirExists(){
+	my $dir = shift;
+	if(-d $dir){
+		announceExists($dir);
+		return 1;
+	}
+	else{
+		dieError("Directory $dir does not exist!");
+	}
+
+}
+sub fileExists(){
+	my $filename = shift;
+	if(-e $filename){
+		announceExists($filename);
+		return 1;
+	}	
+	else{
+		dieError("file $filename does not exist!");
+	}
+}
+sub announceExists(){
+	my $name = shift;
+	print "$name ";
+	print color 'green';
+	print ' 'x(65 - length($name));
+
+	print "Exists\n";
+	print color 'reset';
+}
+sub dieErrorNormal(){
+	die shift;
+}
+
+sub dieError(){
+	my $message = shift;
+	print color 'red';
+	print $message . "\n\n";
+	print color 'reset';
+	die ;
+}
+#
+sub continueError(){
+	print color 'red';
+	print (shift) . "\n\n";
+	print color 'reset';
+}

@@ -1,0 +1,159 @@
+#!/usr/bin/env perl
+use Term::ANSIColor;
+use strict;
+
+main();
+
+
+
+my %orgs;
+
+sub main(){
+#Check to see if each data exists;
+	checkDataSources();
+	%orgs = loadOrganisms();
+	createTables();
+}
+
+
+
+
+sub createTables{
+	my @table_filepaths = ('organisms','chr','markers','recent');
+	foreach my $sql_file(@table_filepaths){
+		fileExists("./sql/$sql_file.sql");
+	}
+	createBlastTables();	
+
+
+}
+
+
+sub createBlastTables(){
+	my $sql = 
+"
+table blast(
+	id INT PRIMARY KEY NOT NULL AUTO_INCREMENT,
+	pid varchar(255),
+	pac varchar(255),
+	orgID varchar(255) not null,
+	chrID varchar(255) NOT NULL,
+	start INT NOT NULL,
+	stop INT NOT NULL,
+";
+
+	my @organisms;
+	foreach(keys %orgs){
+		$sql.= "\t$_\tvarchar(255),\n";
+	}
+	chop $sql;
+	$sql .="\n)";
+
+	my $filepath = ">./sql/blast.sql";
+	open F, $filepath or die $!;
+	print F $sql;
+	close F;
+	printYellow("printed to $filepath");
+
+
+
+
+}
+
+
+
+
+sub loadOrganisms{
+	open F, '../data/organisms/organisms_list';
+	my %organisms;
+	my $count = 0;
+	while(my $line=<F>){
+		chomp $line;
+		my ($id,$latin,$name) = split /\t/, $line;
+		$organisms{$id}{'latin'} = $latin;
+		$organisms{$id}{'name'}= $name;
+		$organisms{$id}{'id'} = $count;
+		$count++;
+	}
+	printYellow( "Discovered " . (scalar keys %organisms) . " Organisms from phytozome");
+	return %organisms;
+
+}
+
+
+sub checkDataSources(){
+	my @data_directories;
+	open F, 'file_locations' or dieError("couldn't find configuration file");
+	
+	printYellow("Looking for file_locations");
+	chomp(my @data_directories = <F>);
+
+	if(fileExists('../data/organisms/organisms_list')){
+		##TODO Load file list, look at each filename and see if they exist in some of the data_diretories 
+		foreach my $dir(@data_directories){
+			dirExists($dir);
+		}
+		#if dir == gff3 || dir == etc
+
+	}
+	close F;
+
+}
+
+
+sub printYellow(){
+	print color 'yellow';
+	print shift,"\n";
+	print color 'reset';
+}
+
+
+
+#Collection of functions that check if something exists or not
+sub dirExists(){
+    	my $dir = shift;
+        if(-d $dir){
+                announceExists($dir);
+                return 1;
+        }
+        else{
+                dieError("Directory $dir does not exist!");
+        }
+
+}
+sub fileExists(){
+	my $filename = shift;
+	if(-e $filename){
+		announceExists($filename);
+		return 1;
+	}	
+	else{
+		dieError("file $filename does not exist!");
+	}
+}
+sub announceExists(){
+	my $name = shift;
+	print "$name\s";
+	print color 'green';
+	print ' 'x(65 - length($name));
+	
+	print "Exists\n";
+	print color 'reset';
+}
+sub dieErrorNormal(){
+	die shift;
+}
+
+sub dieError(){
+	my $message = shift;
+	print color 'red';
+	print $message . "\n\n";
+	print color 'reset';
+	die ;
+}
+#
+sub continueError(){
+	print color 'red';
+	print (shift) . "\n\n";
+	print color 'reset';
+}
